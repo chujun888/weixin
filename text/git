@@ -1,0 +1,57 @@
+﻿
+   【仓库创建 提交】  
+2. git init新建仓库 切换到目录下 
+
+3. git add filename添加文件
+   git add -.     提交所有修改
+
+4. git commit -m '提交信息' 仓库提交
+   ----------------	
+    【查看】
+6. git status 查看仓库状态	   
+
+7. git diff filename 查看文件变化  
+
+8. git log [--pretty=oneline 简化输出]显示修改历史
+   git log --graph 查看分支合并图
+
+10. git reflog 查看命令记录
+   ----------------
+
+ 【文件删除、回撤、修改】
+ 9. git reset --hard HEAD~number或id或HEAD^前面一个 回退到历史版本
+. git checkout --filename 回到之前未修改的状态（）
+13.git reset HEAD filename 暂存区内容撤回到修改 再撤销修改使用上一步
+
+13. git rm 删除仓库中的文件
+    git rm -r 删除文件夹
+    git rm * -r 删除所有文件
+ ------------------------
+  【远程仓库用】
+13.ssh-keygen -t rsa -C 'email'  生成远程仓库密钥
+
+14.git remote add origin git@github.com:chujun888/shop.git 将本地仓库与远程仓库关联
+   git remote -v         显示所有远程仓库信息
+
+
+   git push -u origin master 向远程参数推送文件
+   git push to（远程仓库） from（分支）    将本地仓库（from）向远程仓库推送-同步（to）
+   git push origin dev:dev 远程创建本地分支
+
+   git pull 抓取远程分支
+
+15.git clone git@github.com:chujun888/shop.git 将远程仓库克隆到本地
+ 	
+ 【分支 合并 隐藏】
+17.git branch name 创建分支  
+   git branch 显示所有分支 
+   git branch -d name 删除指定分支
+   git branch -D name 强行删除未合并的分支
+   git branch --set-upstream branch-name  orgin-name 将本地与远程仓库关联
+
+   git checkout -b name  创建并切换分支
+   git checkout -b name origin/name 克隆远程仓库的指定分支
+   git checkout name 切换到该分支
+18.git merge name 合并指定分支到当前分支
+   git merge --no-ff name 合并分支并保存commit变化
+

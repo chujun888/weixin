@@ -86,10 +86,15 @@ class WeChat{
         curl_setopt($curl, CURLOPT_URL, $url);
         curl_setopt($curl, CURLOPT_HEADER, false);
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+        /******必须添加，否则出现41500错误*******/
+        curl_setopt($curl, CURLOPT_SAFE_UPLOAD, false);
+       
+        #设置重定向
         curl_setopt($curl, CURLOPT_AUTOREFERER, true);
        
-        curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, false);
+        curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, 2);
         curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
+       
         if($data){
             curl_setopt($curl, CURLOPT_POST, true);
             curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
@@ -108,8 +113,89 @@ class WeChat{
      * 接受微信公众平台的消息推送
      */
     public function response(){
-        
+        //获取微信信息
+        $postStr=$GLOBALS['HTTP_RAW_POST_DATA'];
+        if (!empty($postStr)){
+                //将post转化为simplexml对象
+                libxml_disable_entity_loader(true);
+              	$postObj = simplexml_load_string($postStr, 'SimpleXMLElement', LIBXML_NOCDATA);           
+        }
+        switch($postObj->MsgType){
+            case 'event':
+                switch($postObj->Event){
+                    case 'subscribe':
+                         $this->_doSub($postObj);
+                    case 'CLICK':
+                        $content=  file_get_contents('./text/git');
+                        $this->_doText($content, $postObj);
+                        
+                }
+                
+                                 
+            break;
+            case 'text':
+                if('图片'==$postObj->Content){
+                    $media_id="Q7_YeVF2qGFr6yRnOE9GiGtjBjmBhPRh1fuJ-jz0y_T-YHXuprjJ8ALcvqQE9xXB";
+                    $this->_doImage($postObj,'',$media_id);
+                    break;
+                }
+                if('新闻'==$postObj->Content){
+                    $item=array(
+                        array('第一条','新闻一','http://www.weixin.cjqy.pub/1.jpg','www.chinanews.com/gn/2016/10-22/8040251.shtml'),
+                        array('第二条','新闻二','http://www.weixin.cjqy.pub/2.jpg','http://www.chinanews.com/gn/2016/10-22/8040251.shtml'),
+                    );
+                    $this->_doNews($postObj, $item);
+                    break;
+                }
+                if('git'==$postObj->Content)
+                    $content=  file_get_contents('./text/git');
+                else {
+                    $content='暂时没有该服务哦';
+                }    
+                $this->_doText ($content, $postObj);               
+            break;
+            case "location":
+                $this->_doLocation($postObj);
+                break;
+        }
+               
     }
+    
+    /**处理订阅时间
+     * 
+     */
+    public function _doSub($obj){
+        $content='欢迎光临，您可以根据菜单中的选项获取想应服务';
+        $this->_doText($content,$obj);
+    }
+    
+    /**处理位置事件
+     * 
+     */
+    private function _doLocation($obj){      
+            $url="http://api.map.baidu.com/place/v2/search?query=建设银行&page_size=10&page_num=0&scope=1&location={$obj->Location_X},{$obj->Location_Y}&radius=2000&output=json&ak=yhe0lGeussLyg6e3EhraXys3PaelddQz";
+            $res=  json_decode($this->getCurl($url));
+            
+            $res=$res->results;
+            $address=$res[count($res)-1]->address;
+            $this->_doText("离你最近的建设银行在$address", $obj);
+    }
+    
+    /**
+     * 回复文本时间
+     */
+    private function _doText($content,$obj){
+        $spl="<xml>
+            <ToUserName><![CDATA[%s]]></ToUserName>
+            <FromUserName><![CDATA[%s]]></FromUserName>
+            <CreateTime>%s</CreateTime>
+            <MsgType><![CDATA[text]]></MsgType>
+            <Content><![CDATA[%s]]></Content>
+            </xml>";
+           $str=  printf($spl,$obj->FromUserName,$obj->ToUserName,time(),$content);
+           echo $str;
+    }
+    
     
     /**
      * 首次验证url合法性
@@ -141,5 +227,90 @@ class WeChat{
 		return false;
 	}
     }
-            
+    
+    /**
+     * 上传图片素材
+     */
+     public function uploadFile($file='./test.jpg',$type='image',$temp=1){
+        if($temp)
+        $url = "https://api.weixin.qq.com/cgi-bin/media/upload?access_token={$this->getToken()}&type=$type";
+        else{
+            $url="https://api.weixin.qq.com/cgi-bin/material/add_material?access_token={$this->getToken()}&type=$type";
+        }
+        #发送数据
+        $data['media']='@'.$file;    
+       return json_decode($this->getCurl($url,$data))->media_id;
+           
+      }
+      
+      /**
+       * 回复图片消息
+       * @param string filename 回复文件的地址
+       * @param  string $media 图片的id标识
+       */
+      public function _doImage($obj,$filename,$media){
+          $tpl="<xml>
+            <ToUserName><![CDATA[%s]]></ToUserName>
+            <FromUserName><![CDATA[%s]]></FromUserName>
+            <CreateTime>%s</CreateTime>
+            <MsgType><![CDATA[image]]></MsgType>
+            <Image>
+            <MediaId><![CDATA[%s]]></MediaId>
+            </Image>
+            </xml>";
+          if(!$media){
+              $media=$this->uploadFile($filename);
+          }
+          $msg=  sprintf($tpl,$obj->FromUserName,$obj->ToUserName,time(),$media);
+          echo $msg;
+          
+      }
+      
+      /**
+       * 回复图文消息
+       * 
+       */
+      private function _doNews($obj,$item=array()){
+          $tpl="<xml>
+            <ToUserName><![CDATA[%s]]></ToUserName>
+            <FromUserName><![CDATA[%s]]></FromUserName>
+            <CreateTime>%s</CreateTime>
+            <MsgType><![CDATA[news]]></MsgType>
+            <ArticleCount>%s</ArticleCount>
+            <Articles>
+             %s
+            </Articles>
+            </xml>";
+          $item_tpl=" <item>
+            <Title><![CDATA[%s]]></Title> 
+            <Description><![CDATA[%s]]></Description>
+            <PicUrl><![CDATA[%s]]></PicUrl>
+            <Url><![CDATA[%s]]></Url>
+            </item>";
+          #拼凑item
+          foreach($item as $k=>$v){
+              $items.=sprintf($item_tpl,$v[0],$v[1],$v[2],$v[3]);
+          }
+          echo sprintf($tpl,$obj->FromUserName,$obj->ToUserName,time(),count($item),$items);
+      }
+      
+      /**
+       * 删除菜单
+       */
+      public function delMenu(){
+          $url="https://api.weixin.qq.com/cgi-bin/menu/delete?access_token={$this->getToken()}";
+          $obj=json_decode($this->getCurl($url));
+          echo $obj->errmsg;
+          
+      }
+      
+      /**
+       * 设置菜单
+       * 设置的菜单，json字符串
+       */
+      public function setMenu($data){
+          $url= "https://api.weixin.qq.com/cgi-bin/menu/create?access_token={$this->getToken()}";
+          $obj=json_decode($this->getCurl($url,$data));
+          echo $obj->errmsg;
+      }
 }
